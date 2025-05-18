@@ -148,10 +148,10 @@ impl CliffordSimulator {
     }
     fn set_row(&mut self, row: Qubit, obs: Qubit) {
         for i in 0..self.n {
-            let x_index = x_index(&self,i);
-            let z_index = z_index(&self,i);
-            self.g[row][x_index] = false;
-            self.g[row][z_index] = false;
+            let x_idx = x_index(&self,i);
+            let z_idx = z_index(&self,i);
+            self.g[row][x_idx] = false;
+            self.g[row][z_idx] = false;
         }
         self.f[row] = 0;
     
@@ -162,11 +162,11 @@ impl CliffordSimulator {
         let total_size = Self::total_size(&self);
         for i in 0..total_size {
             let tmp = self.g[i][x_index(&self, qubit)];
-            let x_index = x_index(&self, qubit);
-            let z_index = z_index(&self, qubit);
+            let x_idx = x_index(&self, qubit);
+            let z_idx = z_index(&self, qubit);
 
-            self.g[i][x_index] = self.g[i][z_index];
-            self.g[i][z_index] = tmp;
+            self.g[i][x_idx] = self.g[i][z_idx];
+            self.g[i][z_idx] = tmp;
 
             if is_y(&self, qubit, i) {
                 self.add_phase(i);
@@ -187,7 +187,7 @@ impl CliffordSimulator {
     }
     pub fn cnot(&mut self, control: Qubit, target: Qubit) {
         for i in 0..self.total_size() {
-            let x_target = x_index(&self, target);
+            let x_target: usize = x_index(&self, target);
             let z_target = z_index(&self, target);
             let x_control = x_index(&self, control);
             let z_control = z_index(&self, control);
