@@ -74,6 +74,9 @@ impl CliffordSimulator {
         Self { n: num_qubits, g, f }
     }
 
+    pub fn get_size(&self) -> Qubit {
+        self.n
+    }
     /// Retorna o tamanho total da matriz G e do vetor (2 * n)
     fn total_size(&self) -> Qubit {
         self.n*2
