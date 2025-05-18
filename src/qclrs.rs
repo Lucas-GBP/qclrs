@@ -40,7 +40,7 @@ fn is_z(s: &CliffordSimulator, i: Qubit, q: Qubit) -> bool {
     !s.g[i][x_index(s, q)] && s.g[i][z_index(s, q)]
 }
 
-enum MeasureReturns {
+pub enum MeasureReturns {
     RandomOne,
     RandomZero,
     AlwaysOne,
@@ -74,6 +74,7 @@ impl CliffordSimulator {
         Self { n: num_qubits, g, f }
     }
 
+    /// Retorna a quantidade de Qubit no sistema
     pub fn get_size(&self) -> Qubit {
         self.n
     }
@@ -86,8 +87,16 @@ impl CliffordSimulator {
         self.n*2
     }
 
+    #[inline]
     fn add_phase(&mut self, qubit: Qubit) {
         self.f[qubit] = ((self.f[qubit]) + PHASE_QUANT / 2) % PHASE_QUANT;
+    }
+    #[inline]
+    fn swap_rows(&mut self, row1: Qubit, row2: Qubit) {
+        let buffer_index = self.buffer_index();
+        self.copy_rows(buffer_index, row2);
+        self.copy_rows(row2, row1);
+        self.copy_rows(row1, buffer_index);
     }
     fn copy_rows(&mut self, target: Qubit, control: Qubit) {
         for qubit in 0..self.n {
@@ -98,12 +107,6 @@ impl CliffordSimulator {
             self.g[target][z_idx] = self.g[control][z_idx];
         }
         self.f[target] = self.f[control];
-    }
-    fn swap_rows(&mut self, row1: Qubit, row2: Qubit) {
-        let buffer_index = self.buffer_index();
-        self.copy_rows(buffer_index, row2);
-        self.copy_rows(row2, row1);
-        self.copy_rows(row1, buffer_index);
     }
     fn mult_row(&mut self, target_row: Qubit, control_row: Qubit) {
         // Ajusta a Fase
@@ -161,6 +164,9 @@ impl CliffordSimulator {
         self.g[row][obs] = true;
     }
 
+    /*
+        Primative Quantum Logic Gates
+     */
     pub fn h(&mut self, qubit: Qubit) {
         let total_size = Self::total_size(&self);
         for i in 0..total_size {
@@ -270,7 +276,9 @@ impl CliffordSimulator {
     
         MeasureReturns::AlwaysZero
     }
-
+    /*
+        Emergent Quantum Logic Gates
+     */
     pub fn z(&mut self, qubit: Qubit) {
         self.s(qubit); // Aplica S
         self.s(qubit); // Aplica S novamente
