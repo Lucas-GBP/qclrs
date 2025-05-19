@@ -46,10 +46,7 @@ pub enum MeasureReturns {
     AlwaysOne,
     AlwaysZero,
 }
-
 const PHASE_QUANT:Phase = 4;
-const Q_FALSE:Qubit = 0;
-const Q_TRUE:Qubit = 1;
 
 pub struct CliffordSimulator {
     // Número de qubits
@@ -86,17 +83,18 @@ impl CliffordSimulator {
     fn buffer_index(&self) -> Qubit {
         self.n*2
     }
-
+    /*
+        Matrix Operations
+     */
     #[inline]
     fn add_phase(&mut self, qubit: Qubit) {
         self.f[qubit] = ((self.f[qubit]) + PHASE_QUANT / 2) % PHASE_QUANT;
     }
     #[inline]
     fn swap_rows(&mut self, row1: Qubit, row2: Qubit) {
-        let buffer_index = self.buffer_index();
-        self.copy_rows(buffer_index, row2);
+        self.copy_rows(self.buffer_index(), row2);
         self.copy_rows(row2, row1);
-        self.copy_rows(row1, buffer_index);
+        self.copy_rows(row1, self.buffer_index());
     }
     fn copy_rows(&mut self, target: Qubit, control: Qubit) {
         for qubit in 0..self.n {
@@ -163,7 +161,6 @@ impl CliffordSimulator {
     
         self.g[row][obs] = true;
     }
-
     /*
         Primative Quantum Logic Gates
      */
@@ -292,7 +289,7 @@ impl CliffordSimulator {
         self.z(qubit);
         self.h(qubit);
     }
-    pub fn y(&mut self, qubit: Qubit){
+    pub fn y(&mut self, qubit: Qubit) {
         self.s(qubit);
         self.x(qubit);
         self.st(qubit);
@@ -308,6 +305,50 @@ impl CliffordSimulator {
         self.z(qubit);
     }
 
+    fn gaussian(&mut self) -> Qubit {
+        let mut i = self.n;
+        let result: Qubit;
 
+        for j in 0..self.n {
+            for k in i..self.total_size() {
+                if self.g[k][x_index(&self, j)] {
+                    self.swap_rows(i, k);
+                    self.swap_rows(i-self.n, k-self.n);
+
+                    for z in (i+1)..self.total_size() {
+                        if self.g[z][x_index(&self, j)] {
+                            self.mult_row(z, i);
+                            self.mult_row(i-self.n, z-self.n);
+                        }
+                    }
+
+                    i += 1;
+                    break;
+                }
+            }
+        }
+        result = i-self.n;
+
+        for j in 0..self.n {
+            for k in i..self.total_size() {
+                if self.g[k][z_index(&self, j)] {
+                    self.swap_rows(i, k);
+                    self.swap_rows(i-self.n, k-self.n);
+
+                    for z in (i+1)..self.total_size() {
+                        if self.g[z][z_index(&self, j)] {
+                            self.mult_row(z, i);
+                            self.mult_row(i-self.n, z-self.n);
+                        } 
+                    }
+
+                    i += 1;
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
 
 }
