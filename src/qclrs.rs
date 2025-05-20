@@ -2,51 +2,13 @@ type ClMatrix = bool;
 type Phase = usize;
 type Qubit = usize;
 
-/// Retorna o índice da coluna X do qubit q
-#[inline]
-fn x_index(s: &CliffordSimulator, q: Qubit) -> Qubit {
-    let _ = s;
-    q
-}
-/// Retorna o índice da coluna Z do qubit q
-#[inline]
-fn z_index(s: &CliffordSimulator, q: Qubit) -> Qubit {
-    q+s.n
-}
-/// Retorna o índice da linha R dos desestabilizadores
-#[inline]
-fn d_index(s: &CliffordSimulator, r: Qubit) -> Qubit {
-    let _ = s;
-    r
-}
-/// Retorna o índice da linha R dos estabilizadores
-#[inline]
-fn s_index(s: &CliffordSimulator, r: Qubit) -> Qubit {
-    r+s.n
-}
-/// Verifica se G[i][q] representa um operador X
-#[inline]
-fn is_x(s: &CliffordSimulator, i: Qubit, q: Qubit) -> bool {
-    s.g[i][x_index(s, q)] && !s.g[i][z_index(s, q)]
-}
-/// Verifica se G[i][q] representa um operador Y
-#[inline]
-fn is_y(s: &CliffordSimulator, i: Qubit, q: Qubit) -> bool {
-    s.g[i][x_index(s, q)] && s.g[i][z_index(s, q)]
-}
-/// Verifica se G[i][q] representa um operador Z
-#[inline]
-fn is_z(s: &CliffordSimulator, i: Qubit, q: Qubit) -> bool {
-    !s.g[i][x_index(s, q)] && s.g[i][z_index(s, q)]
-}
-
 pub enum MeasureReturns {
     RandomOne,
     RandomZero,
     AlwaysOne,
     AlwaysZero,
 }
-const PHASE_QUANT:Phase = 4;
+const PHASE_QUANT: Phase = 4;
 
 const PHASE_STATES: [&str; PHASE_QUANT] = [" +", "+i", " -", "-i"];
 /*
@@ -82,7 +44,11 @@ impl CliffordSimulator {
             g[i + num_qubits][i + num_qubits] = true; // Z
         }
 
-        Self { n: num_qubits, g, f }
+        Self {
+            n: num_qubits,
+            g,
+            f,
+        }
     }
 
     /// Retorna a quantidade de Qubit no sistema
@@ -91,18 +57,53 @@ impl CliffordSimulator {
     }
     /// Retorna o tamanho total da matriz G e do vetor (2 * n)
     fn total_size(&self) -> Qubit {
-        self.n*2
+        self.n * 2
     }
     /// Retorna o índice do buffer (2 * n)
     fn buffer_index(&self) -> Qubit {
-        self.n*2
+        self.n * 2
     }
     /*
-        Matrix Operations
-     */
+       Matrix Operations
+    */
+    /// Retorna o índice da coluna X do qubit q
+    #[inline]
+    fn x_index(&self, q: Qubit) -> Qubit {
+        q
+    }
+    /// Retorna o índice da coluna Z do qubit q
+    #[inline]
+    fn z_index(&self, q: Qubit) -> Qubit {
+        q + self.n
+    }
+    /// Retorna o índice da linha R dos desestabilizadores
+    #[inline]
+    fn d_index(&self, r: Qubit) -> Qubit {
+        r
+    }
+    /// Retorna o índice da linha R dos estabilizadores
+    #[inline]
+    fn s_index(&self, r: Qubit) -> Qubit {
+        r + self.n
+    }
+    /// Verifica se G[i][q] representa um operador X
+    #[inline]
+    fn is_x(&self, i: Qubit, q: Qubit) -> bool {
+        self.g[i][self.x_index(q)] && !self.g[i][self.z_index(q)]
+    }
+    /// Verifica se G[i][q] representa um operador Y
+    #[inline]
+    fn is_y(&self, i: Qubit, q: Qubit) -> bool {
+        self.g[i][self.x_index(q)] && self.g[i][self.z_index(q)]
+    }
+    /// Verifica se G[i][q] representa um operador Z
+    #[inline]
+    fn is_z(&self, i: Qubit, q: Qubit) -> bool {
+        !self.g[i][self.x_index(q)] && self.g[i][self.z_index(q)]
+    }
     #[inline]
     fn add_phase(&mut self, qubit: Qubit) {
-        self.f[qubit] = (self.f[qubit] + PHASE_QUANT/2) % PHASE_QUANT;
+        self.f[qubit] = (self.f[qubit] + PHASE_QUANT / 2) % PHASE_QUANT;
     }
     #[inline]
     fn swap_rows(&mut self, row1: Qubit, row2: Qubit) {
@@ -112,8 +113,8 @@ impl CliffordSimulator {
     }
     fn copy_rows(&mut self, target: Qubit, control: Qubit) {
         for qubit in 0..self.n {
-            let x_idx = x_index(&self, qubit);
-            let z_idx = z_index(&self, qubit);
+            let x_idx = self.x_index(qubit);
+            let z_idx = self.z_index(qubit);
 
             self.g[target][x_idx] = self.g[control][x_idx];
             self.g[target][z_idx] = self.g[control][z_idx];
@@ -122,85 +123,80 @@ impl CliffordSimulator {
     }
     fn mult_row(&mut self, target_row: Qubit, control_row: Qubit) {
         // Ajusta a Fase
-        let mut e: isize = 0;// expoente que i esta elevado
+        let mut e: isize = 0; // expoente que i esta elevado
         for q in 0..self.n {
-            if is_x(&self, control_row, q){
-                if is_y(&self, target_row, q) {
+            if self.is_x(control_row, q) {
+                if self.is_y(target_row, q) {
                     e += 1;
-                } else 
-                if is_z(&self, target_row, q) {
+                } else if self.is_z(target_row, q) {
                     e -= 1;
                 }
-            } else 
-            if is_y(&self, control_row, q) {
-                if is_z(&self, target_row, q) {
+            } else if self.is_y(control_row, q) {
+                if self.is_z(target_row, q) {
                     e += 1;
-                } else 
-                if is_x(&self, target_row, q) {
+                } else if self.is_x(target_row, q) {
                     e -= 1;
                 }
-            } else 
-            if is_z(&self, control_row, q) {
-                if is_x(&self, target_row, q) {
+            } else if self.is_z(control_row, q) {
+                if self.is_x(target_row, q) {
                     e += 1;
-                } else 
-                if is_y(&self, target_row, q) {
+                } else if self.is_y(target_row, q) {
                     e -= 1;
                 }
             }
         }
-    
-        let f = (self.f[target_row]+self.f[control_row]) as isize;
+
+        let f = (self.f[target_row] + self.f[control_row]) as isize;
         let phase_quant = PHASE_QUANT as isize;
-        e = (e+f)%phase_quant;
+        e = (e + f) % phase_quant;
         if !(e >= 0) {
             e += phase_quant;
         }
         self.f[target_row] = e as Qubit;
-    
+
         // Realiza a multiplicação
         for qubit in 0..self.n {
-            let x_i = x_index(&self, qubit);
-            let z_i = z_index(&self, qubit);
+            let x_i = self.x_index(qubit);
+            let z_i = self.z_index(qubit);
             self.g[target_row][x_i] ^= self.g[control_row][x_i];
             self.g[target_row][z_i] ^= self.g[control_row][z_i];
         }
     }
     fn set_row(&mut self, row: Qubit, obs: Qubit) {
         for i in 0..self.n {
-            let x_idx = x_index(&self,i);
-            let z_idx = z_index(&self,i);
+            let x_idx = self.x_index(i);
+            let z_idx = self.z_index(i);
             self.g[row][x_idx] = false;
             self.g[row][z_idx] = false;
         }
         self.f[row] = 0;
-    
+
         self.g[row][obs] = true;
     }
     fn clean_buffer(&mut self) {
         let buffer_index = self.buffer_index();
         self.f[buffer_index] = 0;
         for i in 0..self.n {
-            let x_idx = x_index(&self, i);
-            let z_idx = z_index(&self, i);
+            let x_idx = self.x_index(i);
+            let z_idx = self.z_index(i);
             self.g[buffer_index][x_idx] = false;
             self.g[buffer_index][z_idx] = false;
         }
     }
     /*
-        Primative Quantum Logic Gates
-     */
+       Primative Quantum Logic Gates
+    */
     pub fn h(&mut self, qubit: Qubit) {
         let total_size = Self::total_size(&self);
         for i in 0..total_size {
-            let tmp = self.g[i][x_index(&self, qubit)];
-            let x_idx = x_index(&self, qubit);
-            let z_idx = z_index(&self, qubit);
+            let tmp = self.g[i][self.x_index(qubit)];
+            let x_idx = self.x_index(qubit);
+            let z_idx = self.z_index(qubit);
 
             self.g[i][x_idx] = self.g[i][z_idx];
             self.g[i][z_idx] = tmp;
 
-            if is_y(&self, i, qubit, ) {
+            if self.is_y(i, qubit) {
                 self.add_phase(i);
             }
         }
@@ -208,87 +204,87 @@ impl CliffordSimulator {
     pub fn s(&mut self, qubit: Qubit) {
         let total_size = Self::total_size(&self);
         for i in 0..total_size {
-            if is_y(&self, qubit, i) {
+            if self.is_y(qubit, i) {
                 self.add_phase(i);
             }
 
-            let z_index = z_index(&self, qubit);
-            self.g[i][z_index] ^=
-                self.g[i][x_index(&self, qubit)];
+            let z_index = self.z_index(qubit);
+            self.g[i][z_index] ^= self.g[i][self.x_index(qubit)];
         }
     }
     pub fn cnot(&mut self, control: Qubit, target: Qubit) {
         for i in 0..self.total_size() {
-            let x_target = x_index(&self, target);
-            let z_target = z_index(&self, target);
-            let x_control = x_index(&self, control);
-            let z_control = z_index(&self, control);
+            let x_target = self.x_index(target);
+            let z_target = self.z_index(target);
+            let x_control = self.x_index(control);
+            let z_control = self.z_index(control);
 
             self.g[i][x_target] ^= self.g[i][x_control];
             self.g[i][z_control] ^= self.g[i][z_target];
 
-            if (
-                self.g[i][x_control] && self.g[i][z_target] &&
-                self.g[i][x_target] && self.g[i][z_control]
-                ) || (
-                self.g[i][x_control] && self.g[i][z_target] &&
-                !self.g[i][x_target] && !self.g[i][z_control]
-            ) {
+            if (self.g[i][x_control]
+                && self.g[i][z_target]
+                && self.g[i][x_target]
+                && self.g[i][z_control])
+                || (self.g[i][x_control]
+                    && self.g[i][z_target]
+                    && !self.g[i][x_target]
+                    && !self.g[i][z_control])
+            {
                 self.add_phase(i); // Adiciona a fase se X e Z estiverem presentes (caso Y)
             }
-
         }
     }
     pub fn measure(&mut self, qubit: Qubit, suppress: bool) -> MeasureReturns {
         // TODO: Otimizar e criar opção para medir passivamente
         let mut s_pivot: Option<Qubit> = None;
-    
+
         // Verifica se o qubit é indeterminado
         for i in 0..self.n {
-            if self.g[s_index(&self, i)][x_index(&self, qubit)] {
+            if self.g[self.s_index(i)][self.x_index(qubit)] {
                 s_pivot = Some(i);
                 break;
             }
         }
-    
+
         if let Some(s_pivot) = s_pivot {
-            self.copy_rows(d_index(&self, s_pivot), s_index(&self, s_pivot));
-            self.set_row(s_index(&self, s_pivot), s_index(&self, qubit));
-    
-            let zi = z_index(&self, s_pivot);
+            self.copy_rows(self.d_index(s_pivot), self.s_index(s_pivot));
+            self.set_row(self.s_index(s_pivot), self.s_index(qubit));
+
+            let zi = self.z_index(s_pivot);
             self.f[zi] = (2 * (rand::random::<u64>() % 2)) as Phase;
-    
+
             for i in 0..(2 * self.n) {
-                if i != s_pivot && self.g[i][x_index(&self, qubit)] {
+                if i != s_pivot && self.g[i][self.x_index(qubit)] {
                     self.mult_row(i, s_pivot);
                 }
             }
-    
-            if self.f[z_index(&self, s_pivot)] != 0 {
+
+            if self.f[self.z_index(s_pivot)] != 0 {
                 return MeasureReturns::RandomOne;
             } else {
                 return MeasureReturns::RandomZero;
             }
         }
-    
+
         // Se não for indeterminado e a medição não for suprimida
         if !suppress {
             let mut d_pivot: Option<Qubit> = None;
             for i in 0..self.n {
-                if self.g[i][x_index(&self, qubit)] {
+                if self.g[i][self.x_index(qubit)] {
                     d_pivot = Some(i);
                     break;
                 }
             }
-    
+
             if let Some(d_pivot) = d_pivot {
                 self.copy_rows(self.buffer_index(), d_pivot + self.n);
                 for i in (d_pivot + 1)..self.n {
-                    if self.g[i][x_index(&self, qubit)] {
+                    if self.g[i][self.x_index(qubit)] {
                         self.mult_row(self.buffer_index(), i + self.n);
                     }
                 }
-    
+
                 if self.f[self.buffer_index()] != 0 {
                     return MeasureReturns::AlwaysOne;
                 } else {
@@ -296,12 +292,12 @@ impl CliffordSimulator {
                 }
             }
         }
-    
+
         MeasureReturns::AlwaysZero
     }
     /*
-        Emergent Quantum Logic Gates
-     */
+       Emergent Quantum Logic Gates
+    */
     pub fn z(&mut self, qubit: Qubit) {
         self.s(qubit); // Aplica S
         self.s(qubit); // Aplica S novamente
@@ -331,22 +327,22 @@ impl CliffordSimulator {
         self.z(qubit);
     }
     /*
-        Colapso do Sistema
-     */
+       Colapso do Sistema
+    */
     fn gaussian(&mut self) -> Qubit {
         let mut i = self.n;
         let result: Qubit;
 
         for j in 0..self.n {
             for k in i..self.total_size() {
-                if self.g[k][x_index(&self, j)] {
+                if self.g[k][self.x_index(j)] {
                     self.swap_rows(i, k);
-                    self.swap_rows(i-self.n, k-self.n);
+                    self.swap_rows(i - self.n, k - self.n);
 
-                    for z in (i+1)..self.total_size() {
-                        if self.g[z][x_index(&self, j)] {
+                    for z in (i + 1)..self.total_size() {
+                        if self.g[z][self.x_index(j)] {
                             self.mult_row(z, i);
-                            self.mult_row(i-self.n, z-self.n);
+                            self.mult_row(i - self.n, z - self.n);
                         }
                     }
 
@@ -355,19 +351,19 @@ impl CliffordSimulator {
                 }
             }
         }
-        result = i-self.n;
+        result = i - self.n;
 
         for j in 0..self.n {
             for k in i..self.total_size() {
-                if self.g[k][z_index(&self, j)] {
+                if self.g[k][self.z_index(j)] {
                     self.swap_rows(i, k);
-                    self.swap_rows(i-self.n, k-self.n);
+                    self.swap_rows(i - self.n, k - self.n);
 
-                    for z in (i+1)..self.total_size() {
-                        if self.g[z][z_index(&self, j)] {
+                    for z in (i + 1)..self.total_size() {
+                        if self.g[z][self.z_index(j)] {
                             self.mult_row(z, i);
-                            self.mult_row(i-self.n, z-self.n);
-                        } 
+                            self.mult_row(i - self.n, z - self.n);
+                        }
                     }
 
                     i += 1;
@@ -380,7 +376,7 @@ impl CliffordSimulator {
     }
     fn seed(&mut self, gauss: Qubit) {
         //TODO: otimizar
-        let mut min:Qubit = 0;
+        let mut min: Qubit = 0;
         let buffer_index = self.buffer_index();
         self.clean_buffer();
 
@@ -391,17 +387,17 @@ impl CliffordSimulator {
             let mut j = self.n as isize - 1;
             while j >= 0 {
                 let j_idx = j as usize;
-                if self.g[i][z_index(&self,j_idx)] {
+                if self.g[i][self.z_index(j_idx)] {
                     min = j_idx;
-                    if self.g[buffer_index][x_index(&self, j_idx)] {
-                        f = (f + (PHASE_QUANT-2)) % PHASE_QUANT;
+                    if self.g[buffer_index][self.x_index(j_idx)] {
+                        f = (f + (PHASE_QUANT - 2)) % PHASE_QUANT;
                     }
                 }
                 j -= 1;
             }
 
             if f == 2 {
-                let x_idx = x_index(&self,min);
+                let x_idx = self.x_index(min);
                 self.g[buffer_index][x_idx] = true;
             }
 
@@ -409,15 +405,15 @@ impl CliffordSimulator {
         }
     }
     /*
-        String's
-     */
+       String's
+    */
     fn str_base_state(&self) -> String {
         let buffer_index = self.buffer_index();
         let mut e = self.f[buffer_index];
         let mut result = String::new();
 
         for i in 0..self.n {
-            if is_y(&self, buffer_index, i) {
+            if self.is_y(buffer_index, i) {
                 e = (e + 1) % 4;
             }
         }
@@ -426,7 +422,7 @@ impl CliffordSimulator {
         result.push('|');
 
         for i in 0..self.n {
-            let x_idx = x_index(&self, i);
+            let x_idx = self.x_index(i);
             let bit = self.g[buffer_index][x_idx];
             result.push(if bit { '1' } else { '0' });
         }
