@@ -48,6 +48,20 @@ pub enum MeasureReturns {
 }
 const PHASE_QUANT:Phase = 4;
 
+const PHASE_STATES: [&str; PHASE_QUANT] = [" +", "+i", " -", "-i"];
+/*
+const PAULI_GATES: [[char; 2]; 2] = [
+    ['I', 'Z'],
+    ['X', 'Y'],
+];
+const MEASUREMENT_STATES: [&str; 4] = [
+    "0",
+    "1",
+    "0 (random)",
+    "1 (random)",
+];
+*/
+
 pub struct CliffordSimulator {
     // Número de qubits
     n: Qubit,
@@ -88,7 +102,7 @@ impl CliffordSimulator {
      */
     #[inline]
     fn add_phase(&mut self, qubit: Qubit) {
-        self.f[qubit] = ((self.f[qubit]) + PHASE_QUANT / 2) % PHASE_QUANT;
+        self.f[qubit] = (self.f[qubit] + PHASE_QUANT/2) % PHASE_QUANT;
     }
     #[inline]
     fn swap_rows(&mut self, row1: Qubit, row2: Qubit) {
@@ -108,7 +122,7 @@ impl CliffordSimulator {
     }
     fn mult_row(&mut self, target_row: Qubit, control_row: Qubit) {
         // Ajusta a Fase
-        let mut e: Qubit = 0;// expoente que i esta elevado
+        let mut e: isize = 0;// expoente que i esta elevado
         for q in 0..self.n {
             if is_x(&self, control_row, q){
                 if is_y(&self, target_row, q) {
@@ -136,11 +150,13 @@ impl CliffordSimulator {
             }
         }
     
-        e = (e+self.f[target_row]+self.f[control_row])%PHASE_QUANT;
+        let f = (self.f[target_row]+self.f[control_row]) as isize;
+        let phase_quant = PHASE_QUANT as isize;
+        e = (e+f)%phase_quant;
         if !(e >= 0) {
-            e += PHASE_QUANT;
+            e += phase_quant;
         }
-        self.f[target_row] = e;
+        self.f[target_row] = e as Qubit;
     
         // Realiza a multiplicação
         for qubit in 0..self.n {
@@ -161,6 +177,16 @@ impl CliffordSimulator {
     
         self.g[row][obs] = true;
     }
+    fn clean_buffer(&mut self) {
+        let buffer_index = self.buffer_index();
+        self.f[buffer_index] = 0;
+        for i in 0..self.n {
+            let x_idx = x_index(&self, i);
+            let z_idx = z_index(&self, i);
+            self.g[buffer_index][x_idx] = false;
+            self.g[buffer_index][z_idx] = false;
+        }
+    }
     /*
         Primative Quantum Logic Gates
      */
@@ -174,7 +200,7 @@ impl CliffordSimulator {
             self.g[i][x_idx] = self.g[i][z_idx];
             self.g[i][z_idx] = tmp;
 
-            if is_y(&self, qubit, i) {
+            if is_y(&self, i, qubit, ) {
                 self.add_phase(i);
             }
         }
@@ -193,7 +219,7 @@ impl CliffordSimulator {
     }
     pub fn cnot(&mut self, control: Qubit, target: Qubit) {
         for i in 0..self.total_size() {
-            let x_target: usize = x_index(&self, target);
+            let x_target = x_index(&self, target);
             let z_target = z_index(&self, target);
             let x_control = x_index(&self, control);
             let z_control = z_index(&self, control);
@@ -304,7 +330,9 @@ impl CliffordSimulator {
         self.y(qubit);
         self.z(qubit);
     }
-
+    /*
+        Colapso do Sistema
+     */
     fn gaussian(&mut self) -> Qubit {
         let mut i = self.n;
         let result: Qubit;
@@ -350,5 +378,86 @@ impl CliffordSimulator {
 
         return result;
     }
+    fn seed(&mut self, gauss: Qubit) {
+        //TODO: otimizar
+        let mut min:Qubit = 0;
+        let buffer_index = self.buffer_index();
+        self.clean_buffer();
 
+        let mut i = buffer_index - 1;
+        while i >= self.n + gauss {
+            let mut f = self.f[i];
+
+            let mut j = self.n as isize - 1;
+            while j >= 0 {
+                let j_idx = j as usize;
+                if self.g[i][z_index(&self,j_idx)] {
+                    min = j_idx;
+                    if self.g[buffer_index][x_index(&self, j_idx)] {
+                        f = (f + (PHASE_QUANT-2)) % PHASE_QUANT;
+                    }
+                }
+                j -= 1;
+            }
+
+            if f == 2 {
+                let x_idx = x_index(&self,min);
+                self.g[buffer_index][x_idx] = true;
+            }
+
+            i -= 1;
+        }
+    }
+    /*
+        String's
+     */
+    fn str_base_state(&self) -> String {
+        let buffer_index = self.buffer_index();
+        let mut e = self.f[buffer_index];
+        let mut result = String::new();
+
+        for i in 0..self.n {
+            if is_y(&self, buffer_index, i) {
+                e = (e + 1) % 4;
+            }
+        }
+
+        result.push_str(PHASE_STATES[e as usize]);
+        result.push('|');
+
+        for i in 0..self.n {
+            let x_idx = x_index(&self, i);
+            let bit = self.g[buffer_index][x_idx];
+            result.push(if bit { '1' } else { '0' });
+        }
+
+        result.push('>');
+        result
+    }
+    pub fn str_ket(&mut self) -> String {
+        let buffer_index = self.buffer_index();
+        let gauss = self.gaussian();
+
+        if gauss >= 64 {
+            return "muitos estados para printar.".to_string();
+        }
+
+        let states_quant = 1u64 << gauss;
+        let mut result = format!("\n{states_quant} possiveis estados\n");
+
+        self.seed(gauss);
+        result.push_str(&self.str_base_state());
+
+        for i in 0..(states_quant - 1) {
+            let i2 = i ^ (i + 1);
+            for j in 0..gauss {
+                if i2 & (1 << j) != 0 {
+                    self.mult_row(buffer_index, self.n + j as usize);
+                }
+            }
+            result.push_str(&self.str_base_state());
+        }
+
+        result
+    }
 }
